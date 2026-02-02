@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Test coverage
+coverage
+*.lcov
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.test
+.env.local
+
+# Local action testing
+.github/event.json
+.github/step-summary.md
+
+# Cache
+.eslintcache
+
+# Built test files
+__tests__/runner/*
+
+# OS & IDE files
+# Note: OS and IDE-specific files should be in your global gitignore (~/.gitignore_global)
+# See: https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer

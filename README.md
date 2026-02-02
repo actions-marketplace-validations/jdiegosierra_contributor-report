@@ -1,0 +1,206 @@
+# Contributor Report
+
+[![CI](https://github.com/jdiegosierra/contributor-report/actions/workflows/ci.yml/badge.svg)](https://github.com/jdiegosierra/contributor-report/actions/workflows/ci.yml)
+[![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A GitHub Action that evaluates contributor quality using objective GitHub metrics to help combat AI-generated spam PRs
+in open source projects.
+
+## The Problem
+
+Open source maintainers are increasingly facing a flood of low-quality, AI-generated pull requests. These spam PRs waste
+maintainer time and resources. This action helps by analyzing the PR author's contribution history using objective
+metrics.
+
+## How It Works
+
+When a PR is opened, this action:
+
+1. Fetches the contributor's GitHub activity from the past 12 months
+2. Evaluates each metric against configurable thresholds
+3. Takes configured action if required metrics fail (comment, label, or fail)
+
+### Metrics
+
+| Metric               | Description                                    | Default Threshold |
+| -------------------- | ---------------------------------------------- | ----------------- |
+| PR Merge Rate        | Percentage of PRs that get merged vs closed    | >= 0%             |
+| Account Age          | Age of the GitHub account                      | >= 0 days         |
+| Positive Reactions   | Positive reactions received on comments/issues | >= 0              |
+| Negative Reactions   | Negative reactions received (maximum allowed)  | <= 0              |
+| Repo Quality         | Contributions to repos with stars              | >= 0              |
+| Activity Consistency | Regular activity over time                     | >= 0%             |
+| Issue Engagement     | Issues created that receive engagement         | >= 0              |
+| Code Reviews         | Code reviews given to others                   | >= 0              |
+
+## Usage
+
+> **Note**: All metric thresholds default to `0`, making the action permissive by default. Configure stricter thresholds
+> based on your project's needs.
+
+### Basic Usage
+
+```yaml
+name: PR Quality Check
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-contributor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Contributor Quality
+        uses: jdiegosierra/contributor-report@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### Advanced Configuration
+
+```yaml
+- name: Check Contributor Quality
+  uses: jdiegosierra/contributor-report@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    # Individual thresholds (defaults are 0, override as needed)
+    threshold-pr-merge-rate: '0.3' # Require 30% merge rate
+    threshold-account-age: '30' # Require 30+ day old accounts
+    threshold-positive-reactions: '1' # Require at least 1 positive reaction
+    threshold-negative-reactions: '5' # Allow max 5 negative reactions
+
+    # Metrics that must pass (comma-separated)
+    required-metrics: 'prMergeRate,accountAge'
+
+    # Minimum stars for "quality" repos
+    minimum-stars: '50'
+
+    # Analysis window in months
+    analysis-window: '12'
+
+    # Trusted users (always pass)
+    trusted-users: 'dependabot[bot],renovate[bot],my-bot'
+
+    # Trusted organizations
+    trusted-orgs: 'my-org,partner-org'
+
+    # Action on fail: comment, label, fail, comment-and-label, none
+    on-fail: 'comment-and-label'
+
+    # Label to apply
+    label-name: 'needs-review'
+
+    # Test mode - log but don't act
+    dry-run: 'false'
+
+    # New account handling: neutral, require-review, block
+    new-account-action: 'require-review'
+
+    # Days threshold for "new" accounts
+    new-account-threshold-days: '14'
+```
+
+## Inputs
+
+| Input                          | Required | Default                  | Description                        |
+| ------------------------------ | -------- | ------------------------ | ---------------------------------- |
+| `github-token`                 | Yes      | `${{ github.token }}`    | GitHub token for API access        |
+| `thresholds`                   | No       | `{}`                     | JSON object with custom thresholds |
+| `threshold-pr-merge-rate`      | No       | `0`                      | Minimum PR merge rate (0-1)        |
+| `threshold-account-age`        | No       | `0`                      | Minimum account age in days        |
+| `threshold-positive-reactions` | No       | `0`                      | Minimum positive reactions         |
+| `threshold-negative-reactions` | No       | `0`                      | Maximum negative reactions         |
+| `required-metrics`             | No       | `prMergeRate,accountAge` | Metrics that must pass             |
+| `minimum-stars`                | No       | `100`                    | Min stars for quality repos        |
+| `analysis-window`              | No       | `12`                     | Months of history to analyze       |
+| `trusted-users`                | No       | Common bots              | Comma-separated whitelist          |
+| `trusted-orgs`                 | No       | -                        | Comma-separated org whitelist      |
+| `on-fail`                      | No       | `comment`                | Action when check fails            |
+| `label-name`                   | No       | `needs-review`           | Label to apply                     |
+| `dry-run`                      | No       | `false`                  | Log only, no actions               |
+| `new-account-action`           | No       | `neutral`                | Handling for new accounts          |
+| `new-account-threshold-days`   | No       | `30`                     | Days to consider "new"             |
+
+## Outputs
+
+| Output             | Description                            |
+| ------------------ | -------------------------------------- |
+| `passed`           | Whether all required metrics passed    |
+| `passed-count`     | Number of metrics that passed          |
+| `total-metrics`    | Total number of metrics evaluated      |
+| `breakdown`        | JSON with detailed metric breakdown    |
+| `recommendations`  | JSON array of improvement suggestions  |
+| `is-new-account`   | Whether account is below age threshold |
+| `has-limited-data` | Whether analysis had limited data      |
+| `was-whitelisted`  | Whether user was on trusted list       |
+
+## Using Outputs
+
+```yaml
+- name: Check Contributor Quality
+  id: quality
+  uses: jdiegosierra/contributor-report@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+- name: Handle result
+  if: steps.quality.outputs.passed == 'false'
+  run: |
+    echo "Passed: ${{ steps.quality.outputs.passed }}"
+    echo "Metrics: ${{ steps.quality.outputs.passed-count }}/${{ steps.quality.outputs.total-metrics }}"
+```
+
+## Default Trusted Users
+
+These bots are trusted by default:
+
+- `dependabot[bot]`
+- `renovate[bot]`
+- `github-actions[bot]`
+- `codecov[bot]`
+- `sonarcloud[bot]`
+
+Override with an empty string to disable: `trusted-users: ''`
+
+## Fair Treatment
+
+This action is designed to be fair:
+
+- **New users are not penalized** - Configurable handling for new accounts
+- **Limited data = neutral** - Not enough data doesn't mean low quality
+- **Configurable thresholds** - Adjust for your project's needs
+- **Whitelist support** - Trust known good actors
+- **Dry run mode** - Test before enabling
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Lint
+pnpm lint
+
+# Build
+pnpm bundle
+```
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT
